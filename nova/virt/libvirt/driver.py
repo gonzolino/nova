@@ -6604,8 +6604,25 @@ class LibvirtDriver(driver.ComputeDriver):
 
             # get the real disk size or
             # raise a localized error if image is unavailable
+            LOG.info("Disk: %s Instance: %s" % (path, instance_name))
             if disk_type == 'file':
-                dk_size = int(os.path.getsize(path))
+                dk_size = None
+
+                def thread_getsize(path):
+                    return os.path.getsize(path)
+
+                timeout = eventlet.timeout.Timeout(5)
+                try:
+                    LOG.info("Starting timeout: %d seconds" % timeout.seconds)
+                    # dk_size = int(os.path.getsize(path))
+                    thread = greenthread.spawn(thread_getsize, path)
+                    dk_size = thread.wait()
+                except eventlet.timeout.Timeout:
+                    LOG.error("Timed out while getting the size of '%s'" % path)
+                    continue
+                finally:
+                    LOG.info("Stop timeout")
+                    timeout.cancel()
             elif disk_type == 'block' and block_device_info:
                 dk_size = lvm.get_volume_size(path)
             else:
