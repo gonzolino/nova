@@ -6606,11 +6606,9 @@ class LibvirtDriver(driver.ComputeDriver):
 
             # get the real disk size or
             # raise a localized error if image is unavailable
-            LOG.debug("Disk: %s Instance: %s" % (path, instance_name))
             if disk_type == 'file':
                 dk_size = None
                 with eventlet.timeout.Timeout(5, False):
-                    LOG.debug("Starting timeout")
                     process = multiprocessing.Process(target=os.path.exists, args=(path,))
                     process.start()
                     while process.is_alive():
