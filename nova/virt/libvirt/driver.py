@@ -35,6 +35,7 @@ import mmap
 import operator
 import os
 import shutil
+import subprocess
 import tempfile
 import time
 import uuid
@@ -6608,15 +6609,14 @@ class LibvirtDriver(driver.ComputeDriver):
             if disk_type == 'file':
                 dk_size = None
 
-                def thread_getsize(path):
-                    return os.path.getsize(path)
-
                 timeout = eventlet.timeout.Timeout(5)
                 try:
                     LOG.info("Starting timeout: %d seconds" % timeout.seconds)
-                    # dk_size = int(os.path.getsize(path))
-                    thread = greenthread.spawn(thread_getsize, path)
-                    dk_size = thread.wait()
+                    process = subprocess.Popen(['test', '-f', path])
+                    while process.returncode is None:
+                        greenthread.sleep(1)
+                    process.poll()
+                    dk_size = int(os.path.getsize(path))
                 except eventlet.timeout.Timeout:
                     LOG.error("Timed out while getting the size of '%s'" % path)
                     continue
