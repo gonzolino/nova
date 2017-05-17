@@ -32,10 +32,11 @@ import functools
 import glob
 import itertools
 import mmap
+import multiprocessing
 import operator
 import os
 import shutil
-import subprocess
+import signal
 import tempfile
 import time
 import uuid
@@ -6605,24 +6606,20 @@ class LibvirtDriver(driver.ComputeDriver):
 
             # get the real disk size or
             # raise a localized error if image is unavailable
-            LOG.info("Disk: %s Instance: %s" % (path, instance_name))
+            LOG.debug("Disk: %s Instance: %s" % (path, instance_name))
             if disk_type == 'file':
                 dk_size = None
-
-                timeout = eventlet.timeout.Timeout(5)
-                try:
-                    LOG.info("Starting timeout: %d seconds" % timeout.seconds)
-                    process = subprocess.Popen(['test', '-f', path])
-                    while process.returncode is None:
+                with eventlet.timeout.Timeout(5, False):
+                    LOG.debug("Starting timeout")
+                    process = multiprocessing.Process(target=os.path.exists, args=(path,))
+                    process.start()
+                    while process.is_alive():
                         greenthread.sleep(1)
-                    process.poll()
                     dk_size = int(os.path.getsize(path))
-                except eventlet.timeout.Timeout:
+                if dk_size is None:
+                    os.kill(process.pid, signal.SIGKILL)
                     LOG.error("Timed out while getting the size of '%s'" % path)
                     continue
-                finally:
-                    LOG.info("Stop timeout")
-                    timeout.cancel()
             elif disk_type == 'block' and block_device_info:
                 dk_size = lvm.get_volume_size(path)
             else:
